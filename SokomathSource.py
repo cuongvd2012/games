@@ -46,6 +46,11 @@ class lv:
         for pos, (id, typee) in self.obj.items():
             lvlcopy.add(typee, pos, id=id)
         return lvlcopy
+    def gridify(self):
+        grid = [[None for i in range(self.dimensions[0])] for j in range(self.dimensions[1])]
+        for item in self.obj.items():
+            grid[item[0][1]][item[0][0]] = item[1]
+        return grid
 class obj:
     def __init__(self, typee, value=None):
         self.type=typee
@@ -119,95 +124,121 @@ def push(id, dxy, max_depth=99, typpe=None):
         animation[nid]=("push", dxy)
         return True
     return False
+def parse(tokens):
+    i = 0
+    def peek():
+        return tokens[i] if i < len(tokens) else ""
+    def eat():
+        nonlocal i
+        i += 1
+        return tokens[i-1] if i-1 < len(tokens) else ""
+    def parse_expr():
+        return parse_add()
+    def parse_add():
+        result = parse_mul()
+        cont = True
+        while True:
+            cont = False
+            if peek() == "+":
+                eat()
+                cont = True
+                res = parse_mul()
+                result[0] += res[0]
+                result[1] = result[1] and res[1]
+            if peek() == "-":
+                eat()
+                cont = True
+                res = parse_mul()
+                result[0] -= res[0]
+                result[1] = result[1] and res[1]
+            if not cont:
+                break
+        return result
+    def parse_mul():
+        result = parse_num()
+        cont = True
+        while True:
+            cont = False
+            if peek() == "*":
+                eat()
+                cont = True
+                res = parse_num()
+                result[0] *= res[0]
+                result[1] = result[1] and res[1]
+            if not cont:
+                break
+        return result
+    def parse_num():
+        num = 0
+        cont = True
+        valid = False
+        if peek() == "(":
+            eat()
+            num = parse_expr()
+            if peek() == ")":
+                eat()
+                return num
+        while True:
+            cont = False
+            p = peek()
+            if p in "0123456789" and p != "":
+                cont = True
+                num *= 10
+                num += int(eat())
+                valid = True
+            if not cont:
+                break
+        return [num, valid]
+    return parse_expr()
+        
 def checkeq(lvv):
-    symbols=set("0123456789+-*")
-    ops=set("+-*")
-    for pos in list(lvv.obj.keys()):
-        idd, typee=lvv.obj[pos]
-        if typee.value=="=":
-            x, y=pos
-            eq=[]
-            iddd=[]
-            xx=x-1
-            satsat=False
-            satsatsat=True
-            while (xx, y) in lvv.obj and lvv.obj[(xx, y)][1].type==typee.type:
-                iid, typeee=lvv.obj[(xx, y)]
-                if typeee.value in symbols:
-                    eq.insert(0, typeee.value)
-                    iddd.insert(0, iid)
-                    xx-=1
-                    if typeee.value in ops and not satsat:
-                        satsat=True
-                        satsatsat=False
-                    elif satsat and not satsatsat and typeee not in ops:
-                        satsatsat=True
-                else:
-                    break
-            if not eq: continue
-            if not satsatsat: continue
-            if not satsat: continue
-            eq="".join(eq)
-            try:
-                ans=str(eval(eq))
-                sat=True
-                for i in range(len(ans)):
-                    neepos=(x+i+1, y)
-                    if neepos in lvv.obj or neepos[0]>=lvv.dimensions[0]:
-                        sat=False
-                        break
-                if sat:
-                    for eid in iddd:
-                        lvv.remove(eid)
-                    for i, char in enumerate(ans):
-                        newpos=(x+i+1, y)
-                        nid=lvv.add(obj(typee.type, char), newpos)
-                        animation[nid]=("push", (1, 0))
-            except Exception:
-                continue
-    for pos in list(lvv.obj.keys()):
-        idd, typee=lvv.obj[pos]
-        if typee.value=="=":
-            x, y=pos
-            eq=[]
-            iddd=[]
-            yy=y-1
-            satsat=False
-            satsatsat=True
-            while (x, yy) in lvv.obj and lvv.obj[(x, yy)][1].type==typee.type:
-                iid, typeee=lvv.obj[(x, yy)]
-                if typeee.value in symbols:
-                    eq.insert(0, typeee.value)
-                    iddd.insert(0, iid)
-                    yy-=1
-                    if typeee.value in ops and not satsat:
-                        satsat=True
-                        satsatsat=False
-                    elif satsat and not satsatsat and typeee not in ops:
-                        satsatsat=True
-                else:
-                    break
-            if not eq: continue
-            if not satsatsat: continue
-            if not satsat: continue
-            eq="".join(eq)
-            try:
-                ans=str(eval(eq))
-                sat=True
-                for i in range(len(ans)):
-                    neepos=(x, y+i+1)
-                    if neepos in lvv.obj or neepos[0]>=lvv.dimensions[0]:
-                        sat=False
-                        break
-                if sat:
-                    for eid in iddd:
-                        lvv.remove(eid)
-                    for i, char in enumerate(ans):
-                        newpos=(x, y+i+1)
-                        nid=lvv.add(obj(typee.type, char), newpos)
-                        animation[nid]=("push", (0, 1))
-            except Exception:
-                continue
+    grid = lvv.gridify()
+    tokens = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9",
+              "+", "-", "*",
+              "(", ")"]
+    for i, r in enumerate(grid):
+        for j, c in enumerate(r):
+            if c is None: continue
+            if c[1].value == "=":
+                direction = []
+                if i > 0 and grid[i-1][j] is not None:
+                    direction.append((0, -1))
+                if j > 0 and grid[i][j-1] is not None:
+                    direction.append((-1, 0))
+                for d in direction:
+                    parts = []
+                    pos = [j+d[0],i+d[1]]
+                    while 0 <= pos[0] < lvv.dimensions[0] and 0 <= pos[1] < lvv.dimensions[1] and grid[pos[1]][pos[0]] is not None and grid[pos[1]][pos[0]][1].value in tokens:
+                        parts = [grid[pos[1]][pos[0]]]+parts
+                        pos = [pos[0]+d[0],pos[1]+d[1]]
+                    parts = [part[1].value for part in parts]
+                    if parts:
+                        print(parts)
+                        result = parse(parts)
+                        print(result)
+                        if not result[1]:
+                            continue
+                        pieces = list(str(result[0]))
+                        starting = [j-d[0],i-d[1]]
+                        bsignal = False
+                        for I in range(len(pieces)):
+                            npos = [starting[0]-d[0]*I,starting[1]-d[1]*I]
+                            if grid[npos[1]][npos[0]] is not None:
+                                bsignal = True
+                                break
+                        if pieces == parts:
+                            continue
+                        if bsignal:
+                            continue
+                        for I in range(len(pieces)):
+                            npos = [starting[0]-d[0]*I,starting[1]-d[1]*I]
+                            lvv.add(obj("push", pieces[I]), tuple(npos))
+                        for I in range(len(parts)):
+                            npos = [j+d[0]*(I+1),i+d[1]*(I+1)]
+                            lvv.remove(grid[npos[1]][npos[0]][0])
+                            
+                
+                
 
 
 def cancel(lvv):
