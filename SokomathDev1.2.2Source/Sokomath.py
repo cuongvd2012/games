@@ -8,6 +8,8 @@ lvs={}
 objlvs={}
 modified={}
 animation={}
+lvname=""
+wons={}
 bgobjs={"win", "lv", "star", "unstar", "oneway"}
 lvhistory=["hub"]
 removee=set()
@@ -91,7 +93,7 @@ def drawlevel(name, x, y, scaley, frame=0):
             w.blit(surf, surf.get_rect(center=npos).move(-surf.get_bounding_rect().center[0]+surf.get_width()/2, -surf.get_bounding_rect().center[1]+surf.get_height()/2))
         elif typee.type=="lv":
             pygame.draw.circle(w, (0, 0, 0), (x+tilesizex*(pos[0]+0.5), y+tilesizey*(pos[1]+0.5)), tilesizex*0.4, width=int(tilesizex*0.15))
-            pygame.draw.circle(w, (255, 255, 255), (x+tilesizex*(pos[0]+0.5), y+tilesizey*(pos[1]+0.5)), tilesizex*0.4, width=int(tilesizex*0.1))
+            pygame.draw.circle(w, (255, 255, 255) if typee.value[0] not in wons else (255, 255, 0), (x+tilesizex*(pos[0]+0.5), y+tilesizey*(pos[1]+0.5)), tilesizex*0.4, width=int(tilesizex*0.1))
             surf=font3.render(typee.value[1], False, (255, 255, 255))
             surf2=font3.render(typee.value[1], False, (0, 0, 0))
             npos=(x+tilesizex*(pos[0]+0.5), y+tilesizey*(pos[1]+0.5))
@@ -285,11 +287,11 @@ def checkeq(lvv):
                             sat=False
                             break
                 if sat:
+                    if pos!=player: removee.add(idd)
                     for eid in iddd:
                         pos=lvv.obj2[eid][0]
                         bg=lvv.bg.get(pos, (-1, None))
                         if (pos!=player and (bg[0]==-1 or bg[1].type!="star")) or (bg[0]!=-1 and bg[1].type=="unstar"): removee.add(eid)
-                    if pos!=player: removee.add(idd)
                     if ans=="Err.":
                         newpos=(x+1, y)
                         nid=lvv.add(obj(typee.type, ans), newpos)
@@ -332,19 +334,21 @@ def checkeq(lvv):
                 sat=True
                 if ans=="Err.":
                     neepos=(x, y+1)
-                    if neepos in lvv.obj or neepos[0]>=lvv.dimensions[0]:
+                    if neepos in lvv.obj or neepos[1]>=lvv.dimensions[1]:
                         sat=False
                         break
                 else:
                     for i in range(len(ans)):
                         neepos=(x, y+i+1)
-                        if neepos in lvv.obj or neepos[0]>=lvv.dimensions[0]:
+                        if neepos in lvv.obj or neepos[1]>=lvv.dimensions[1]:
                             sat=False
                             break
                 if sat:
-                    for eid in iddd:
-                        if lvv.obj2[eid][0]!=player: removee.add(eid)
                     if pos!=player: removee.add(idd)
+                    for eid in iddd:
+                        pos=lvv.obj2[eid][0]
+                        bg=lvv.bg.get(pos, (-1, None))
+                        if (pos!=player and (bg[0]==-1 or bg[1].type!="star")) or (bg[0]!=-1 and bg[1].type=="unstar"): removee.add(eid)
                     if ans=="Err.":
                         newpos=(x, y+1)
                         nid=lvv.add(obj(typee.type, ans), newpos)
@@ -357,6 +361,7 @@ def checkeq(lvv):
             except Exception:
                 continue
 def cancel(lvv):
+    global wons
     for pos, (idd, typee) in list(lvv.obj.items()):
         if typee.type=="lock":
             x, y=pos
@@ -378,6 +383,16 @@ def cancel(lvv):
                         if nid!=player: removee.add(nid)
     for iidd in removee:
         lvv.remove(iidd)
+def win(lvv):
+    for pos, (idd, typee) in list(lvv.bg.items()):
+        if typee.type=="win":
+            print(player, pos)
+            if player == pos:
+                print(lvv.id)
+                wons[lvname] = True
+                if len(lvhistory)>1:
+                    lvhistory.pop(-1)
+                    load("assets/"+lvhistory[-1]+".lv")
 lvvll=None
 player=-1
 def save(file):
@@ -389,13 +404,15 @@ def save(file):
     }
     with open(file, "wb") as f: pickle.dump(save, f)
 def load(file):
-    global lvvll, objlvs, next_free, player
+    global lvvll, objlvs, next_free, player, lvname
     with open(file, "rb") as f: load=pickle.load(f)
     lvvll=load["level"]
     objlvs=load["objlvs"]
     next_free=load["next_free"]
     player=load["player"]
     lvs[lvvll.id]=lvvll
+    lvname = file[7:-3]
+    "assets/filename.lv"
 def createlv():
     global player, lvvll;
     lvvll = newlevel((10, 10), "root", color=(150, 0, 214));
@@ -538,6 +555,7 @@ while x:
                     player=(player[0]+move[0], player[1]+move[1])
                     pp=lvvll.obj.get(player, (-1, None))
                     if pp[0]!=-1 and pp[1].type in {"wall", "inflock"}: player=(player[0]-move[0], player[1]-move[1])
+                win(lvvll)
             ppp=lvvll.bg.get(player, (-1, None))
             if ppp[0]!=-1:
                 if ppp[1].type=="lv":
